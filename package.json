@@ -1,0 +1,15 @@
+{
+  "name": "abel-asistente",
+  "version": "1.0.0",
+  "description": "ABEL · Red Neuronal — asistente personal de Abel con voz y texto que monitorea todas sus apps",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": "20.x"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  }
+}

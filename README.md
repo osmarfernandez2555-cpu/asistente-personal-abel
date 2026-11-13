@@ -1,0 +1,71 @@
+# ABEL · Red Neuronal
+
+Tu asistente personal con voz y texto. Muestra todos tus proyectos como una red neuronal 3D y cada 5 minutos revisa cuáles funcionan y cuáles no: Railway, GitHub Pages, webs, bots de WhatsApp (Evolution API) y Claude.
+
+## Qué tiene
+
+- Red 3D con un núcleo "ABEL" en el centro y tus grupos alrededor: Tutu Automotores, Bots WhatsApp, AyN, Webs de clientes, Infraestructura y Descubiertos.
+- Colores de cada proyecto:
+  - Verde: funciona
+  - Amarillo: con problemas (lento, desplegando, dormido)
+  - Rojo titilando: caído
+  - Azul: solo código (está en GitHub pero no tiene web para revisar)
+  - Gris: sin datos
+- Tocás un proyecto y ves qué falla: el link, el deploy de Railway, la conexión de WhatsApp y el último cambio en GitHub.
+- Descubre solo los proyectos nuevos: todo repo de GitHub o servicio de Railway que no esté en `projects.json` aparece en "Descubiertos".
+- Chat con Claude que conoce el estado en vivo: "¿qué está caído?", "¿cómo arreglo Ruthina?".
+- Voz: tocás el micrófono, el núcleo o la barra espaciadora y le hablás. Te responde en voz alta y queda escuchando para seguir la charla.
+- Si algo se cae mientras tenés la página abierta, te avisa con un cartel y por voz.
+
+## Archivos
+
+- `server.js`: el servidor que hace los chequeos y habla con Claude
+- `projects.json`: la lista de tus proyectos (acá agregás o corregís)
+- `public/index.html`: la red neuronal, el chat y la voz
+- `package.json`: dependencias (solo express, Node 20)
+
+## Cómo subirlo a Railway (paso a paso)
+
+1. Creá un repo nuevo en GitHub, por ejemplo `osmarfernandez2555-cpu/abel-asistente`, y subí estos archivos tal cual (con la carpeta `public`).
+2. En Railway: New Project → Deploy from GitHub repo → elegí `abel-asistente`.
+3. En el servicio, pestaña Variables, cargá estas:
+   - `APP_PASSWORD`: la contraseña para entrar (obligatoria, la página muestra el estado de todo)
+   - `ANTHROPIC_API_KEY`: tu key de Claude (la misma que usa Ruthina sirve)
+   - `GITHUB_TOKEN`: token de GitHub (ver abajo)
+   - `RAILWAY_TOKEN`: token de cuenta de Railway (ver abajo)
+   - `EVOLUTION_API_KEY`: la apikey global de tu Evolution API (para saber si WhatsApp está conectado)
+   - Opcionales: `CLAUDE_MODEL` (por defecto `claude-sonnet-5-5`), `CHECK_EVERY_MIN` (por defecto 5), `GITHUB_USERS` (por defecto `osmarfernandez2555-cpu,natirodriguez32-sketch`)
+4. Pestaña Settings → Networking → Generate Domain. Te queda algo como `abel-asistente-production.up.railway.app`.
+5. Abrilo en Chrome, poné la contraseña y listo. El primer chequeo tarda unos segundos.
+
+### Cómo sacar cada token
+
+- GitHub: github.com → tu foto → Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token. Repository access: All repositories. Permissions: Metadata = Read-only y Contents = Read-only. Sin token igual funciona, pero solo ve repos públicos y GitHub limita las consultas.
+- Railway: railway.com → tu foto → Account Settings → Tokens → Create Token. Elegí tu cuenta personal (no un token de proyecto). Con esto ABEL ve TODOS tus servicios, si el último deploy salió bien, falló o se cayó, y sus dominios.
+- Evolution API: es la variable `AUTHENTICATION_API_KEY` del servicio de Evolution en Railway.
+
+## Cómo agregar o corregir un proyecto
+
+Editá `projects.json`. Cada proyecto tiene:
+
+- `id`: nombre corto sin espacios (el asistente lo usa para abrirlo)
+- `name`, `group` (`tutu`, `bots`, `ayn`, `clientes`) y `desc`
+- `urls`: los links a revisar
+- `repos`: los repos exactos de GitHub, por ejemplo `osmarfernandez2555-cpu/RUTHINA`
+- `railway`: palabras que aparecen en el nombre del servicio de Railway, por ejemplo `["compara"]`
+- `evolution`: `{ "url": "...", "instance": "tutu-ventas2" }` para revisar un WhatsApp
+
+Guardás, hacés commit y Railway lo redepliega solo.
+
+## Si algo no anda
+
+- La página dice "Contraseña incorrecta": revisá `APP_PASSWORD` en Variables (sin espacios al final).
+- El chat responde "Todavía no tengo cerebro": falta `ANTHROPIC_API_KEY`.
+- El chat responde "Claude devolvió model not found": cambiá `CLAUDE_MODEL` por un modelo que tenga tu cuenta, por ejemplo el mismo que usa Ruthina.
+- La chapita de GitHub está amarilla o roja con "límite de consultas": poné `GITHUB_TOKEN`.
+- La chapita de Railway dice "Not Authorized": el token es de proyecto o de otro workspace; creá uno de cuenta.
+- Un servicio de Railway aparece en "Descubiertos" en vez de su grupo: agregá una palabra de su nombre en el campo `railway` del proyecto correcto.
+- El micrófono no funciona: usá Chrome o Edge y dale permiso al micrófono (candado al lado de la dirección). En iPhone, Safari reconoce voz desde iOS 14.5 pero a veces hay que tocar el micrófono cada vez.
+- Un proyecto con login aparece verde: es correcto, un 401/403 significa que está en línea y protegido.
+- Un backend sin página de inicio ("Cannot GET /") aparece verde: está vivo.
+- Deploy falla en Railway con error de Node: confirmá que `package.json` tiene `"node": "20.x"`.
