@@ -127,7 +127,13 @@
 
   /* ---------- chat ---------- */
   .dock{position:fixed;left:50%;bottom:calc(18px + var(--safe-b));transform:translateX(-50%);width:min(720px,calc(100% - 24px));z-index:10;display:flex;flex-direction:column;gap:10px}
-  .log{max-height:36vh;overflow:auto;display:flex;flex-direction:column;gap:8px;padding:2px;scroll-behavior:smooth;mask-image:linear-gradient(to bottom,transparent,#000 24px)}
+  .chatbar{display:none;justify-content:flex-end;gap:6px}
+  .chatbar.show{display:flex}
+  .chatbar button{min-height:32px;padding:0 12px;border-radius:999px;background:var(--surface);border:1px solid var(--line);font-size:12.5px;color:var(--ink-2);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);display:inline-flex;align-items:center;gap:6px;transition:border-color var(--fast),color var(--fast)}
+  .chatbar button:hover{border-color:var(--line-hi);color:var(--ink)}
+  .chatbar svg{width:14px;height:14px}
+  .log.hidden{display:none}
+  .log{max-height:30vh;overflow:auto;display:flex;flex-direction:column;gap:8px;padding:2px;scroll-behavior:smooth;mask-image:linear-gradient(to bottom,transparent,#000 24px)}
   .log:empty{display:none}
   .msg{max-width:88%;padding:11px 15px;border-radius:16px;font-size:15px;line-height:1.5;white-space:pre-wrap;animation:rise var(--mid) var(--ease)}
   @keyframes rise{from{opacity:0;transform:translateY(8px)}}
@@ -214,6 +220,10 @@
 <div class="tip" id="tip" aria-hidden="true"></div>
 
 <div class="dock">
+  <div class="chatbar" id="chatbar">
+    <button type="button" id="chatToggle" aria-controls="log" aria-expanded="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg><span>Ocultar charla</span></button>
+    <button type="button" id="chatClear" aria-label="Borrar la charla"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg>Borrar</button>
+  </div>
   <div class="log" id="log" aria-live="polite" aria-label="Conversación con ABEL"></div>
   <div class="sugs" id="sugs" aria-label="Preguntas sugeridas">
     <button type="button">¿Qué está caído?</button>
@@ -724,11 +734,24 @@ cv.addEventListener('wheel', e => { e.preventDefault(); view.zoom = Math.max(.5,
 RM.addEventListener && RM.addEventListener('change', () => requestAnimationFrame(frame));
 
 // ---------------- CHAT ----------------
-let history = store.get('chat', []);
+// la charla vive solo mientras la página está abierta: al recargar arranca vacía
+let history = [], chatHidden = false;
+try { localStorage.removeItem('abel.chat'); } catch {}
+function paintChatbar(){
+  $('#chatbar').classList.toggle('show', history.length > 0);
+  $('#log').classList.toggle('hidden', chatHidden);
+  const t = $('#chatToggle');
+  t.setAttribute('aria-expanded', String(!chatHidden));
+  t.querySelector('span').textContent = chatHidden ? `Ver charla (${history.length})` : 'Ocultar charla';
+  t.querySelector('svg').style.transform = chatHidden ? 'rotate(180deg)' : '';
+}
+$('#chatToggle').onclick = () => { chatHidden = !chatHidden; paintChatbar(); if (!chatHidden) $('#log').scrollTop = 1e9; };
+$('#chatClear').onclick = () => { history = []; chatHidden = false; stopSpeak(); renderLog(); $('#q').focus(); };
 function renderLog(){
   const log = $('#log');
   log.innerHTML = history.slice(-12).map(m => `<div class="msg ${m.role === 'user' ? 'u' : 'a'}">${esc(m.content)}</div>`).join('');
   $('#sugs').style.display = history.length ? 'none' : 'flex';
+  paintChatbar();
   log.scrollTop = log.scrollHeight;
 }
 renderLog();
@@ -736,7 +759,7 @@ renderLog();
 async function ask(text, fromVoice){
   text = String(text || '').trim(); if (!text) return;
   convo = !!fromVoice;
-  history.push({ role:'user', content:text }); renderLog();
+  history.push({ role:'user', content:text }); chatHidden = false; renderLog();
   $('#q').value = '';
   const thinking = document.createElement('div'); thinking.className = 'msg a thinking'; thinking.setAttribute('aria-label', 'ABEL está pensando');
   thinking.innerHTML = '<i></i><i></i><i></i>';
@@ -747,7 +770,7 @@ async function ask(text, fromVoice){
   catch(e){ reply = e.message === 'login' ? 'Tenés que iniciar sesión para hablar conmigo.' : 'No me pude conectar con el servidor. Revisá tu internet y probá de nuevo.'; }
   core.busy = false; kick();
   const actions = []; reply = String(reply || '').replace(/\[\[(foco|abrir|revisar)(?::([^\]]+))?\]\]/g, (_, a, id) => { actions.push([a, (id||'').trim()]); return ''; }).trim();
-  history.push({ role:'assistant', content:reply }); history = history.slice(-30); store.set('chat', history);
+  history.push({ role:'assistant', content:reply }); history = history.slice(-30);
   renderLog();
   for (const [a, id] of actions){
     if (a === 'foco'){ focusNode(id); openPanel(id); }
