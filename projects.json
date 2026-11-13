@@ -1,171 +1,369 @@
 {
   "_ayuda": "Lista de proyectos de Abel. Campos: id (único, sin espacios), name, group (tutu | bots | ayn | clientes), desc, urls (links que se chequean), repos (repos exactos de GitHub owner/nombre), railway (palabras que aparecen en el nombre del servicio de Railway), evolution (instancia de WhatsApp a revisar). Los repos y servicios que no estén acá aparecen solos en el grupo 'Descubiertos'.",
   "groups": [
-    { "id": "tutu", "name": "Tutu Automotores", "color": "#ff8a3d" },
-    { "id": "bots", "name": "Bots WhatsApp", "color": "#25d366" },
-    { "id": "ayn", "name": "AyN", "color": "#a78bfa" },
-    { "id": "clientes", "name": "Webs de clientes", "color": "#38bdf8" },
-    { "id": "descubiertos", "name": "Descubiertos", "color": "#64748b" }
+    {
+      "id": "tutu",
+      "name": "Tutu Automotores",
+      "color": "#ff8a3d"
+    },
+    {
+      "id": "bots",
+      "name": "Bots WhatsApp",
+      "color": "#25d366"
+    },
+    {
+      "id": "ayn",
+      "name": "AyN",
+      "color": "#a78bfa"
+    },
+    {
+      "id": "clientes",
+      "name": "Webs de clientes",
+      "color": "#38bdf8"
+    },
+    {
+      "id": "descubiertos",
+      "name": "Descubiertos",
+      "color": "#64748b"
+    }
   ],
   "projects": [
     {
-      "id": "ruthina", "name": "Ruthina", "group": "tutu",
+      "id": "ruthina",
+      "name": "Ruthina",
+      "group": "tutu",
       "desc": "Asistente de ventas con IA: stock, clientes, comparador ML, presupuestos PDF, libros de cierre y webhook de Kommo.",
-      "urls": ["https://osmarfernandez2555-cpu.github.io/RUTHINA/"],
-      "repos": ["osmarfernandez2555-cpu/RUTHINA", "osmarfernandez2555-cpu/COMPARA-CONEJO"],
-      "railway": ["compara", "ruthina"]
+      "urls": [
+        "https://osmarfernandez2555-cpu.github.io/RUTHINA/"
+      ],
+      "repos": [
+        "osmarfernandez2555-cpu/RUTHINA",
+        "osmarfernandez2555-cpu/COMPARA-CONEJO"
+      ],
+      "railway": [
+        "compara",
+        "ruthina"
+      ]
     },
     {
-      "id": "tutu-admin", "name": "Panel de Adrián", "group": "tutu",
+      "id": "tutu-admin",
+      "name": "Panel de Adrián",
+      "group": "tutu",
       "desc": "Dashboard admin para Adrián con accesos a todas las apps de Tutu y asistente de voz.",
-      "repos": ["osmarfernandez2555-cpu/tutu-admin"],
-      "railway": ["tutu-admin"]
+      "repos": [
+        "osmarfernandez2555-cpu/tutu-admin"
+      ],
+      "railway": [
+        "tutu-admin"
+      ]
     },
     {
-      "id": "referidos", "name": "Club de Referidos", "group": "tutu",
+      "id": "referidos",
+      "name": "Club de Referidos",
+      "group": "tutu",
       "desc": "Landing del club de referidos ($100.000 al referente a 30 días de la entrega).",
-      "urls": ["https://tutu-referidos.up.railway.app/referidos"],
-      "repos": ["osmarfernandez2555-cpu/tutu-referidos"],
-      "railway": ["referidos"]
+      "urls": [
+        "https://tutu-referidos.up.railway.app/referidos"
+      ],
+      "repos": [
+        "osmarfernandez2555-cpu/tutu-referidos"
+      ],
+      "railway": [
+        "referidos"
+      ]
     },
     {
-      "id": "consulta-creditos", "name": "Consulta Créditos", "group": "tutu",
+      "id": "consulta-creditos",
+      "name": "Consulta Créditos",
+      "group": "tutu",
       "desc": "Consulta por CUIT en Bancor, Nación, Galicia, decreditos y Santander (Railway + extensión de Chrome).",
-      "railway": ["bancor", "consulta-credito", "consulta"]
+      "railway": [
+        "bancor",
+        "consulta-credito",
+        "consulta"
+      ]
     },
     {
-      "id": "showroom-3d", "name": "Showroom 3D", "group": "tutu",
+      "id": "showroom-3d",
+      "name": "Showroom 3D",
+      "group": "tutu",
       "desc": "Web de autos en 3D: recorrer el galpón y ver cada auto en 360°.",
-      "urls": ["https://osmarfernandez2555-cpu.github.io/pagina-tutuautomotores/"],
-      "repos": ["osmarfernandez2555-cpu/pagina-tutuautomotores"]
+      "urls": [
+        "https://osmarfernandez2555-cpu.github.io/pagina-tutuautomotores/"
+      ],
+      "repos": [
+        "osmarfernandez2555-cpu/pagina-tutuautomotores"
+      ]
     },
     {
-      "id": "web-tutu", "name": "Web Tutu", "group": "tutu",
+      "id": "web-tutu",
+      "name": "Web Tutu",
+      "group": "tutu",
       "desc": "Sitio oficial tutuautomotores.com.",
-      "urls": ["https://tutuautomotores.com"]
+      "urls": [
+        "https://tutuautomotores.com"
+      ]
     },
     {
-      "id": "panel-app-ventas", "name": "Panel App Ventas", "group": "tutu",
+      "id": "panel-app-ventas",
+      "name": "Panel App Ventas",
+      "group": "tutu",
       "desc": "Copia web de las apps AppSheet TUTU - APP y TUTU - VENTAS.",
-      "railway": ["app-ventas", "panel-app", "tutu-app", "appsheet"]
+      "railway": [
+        "app-ventas",
+        "panel-app",
+        "tutu-app",
+        "appsheet"
+      ]
     },
     {
-      "id": "appsheet", "name": "AppSheet", "group": "tutu",
+      "id": "appsheet",
+      "name": "AppSheet",
+      "group": "tutu",
       "desc": "Apps originales de AppSheet: TUTU - APP y TUTU - VENTAS.",
-      "urls": ["https://www.appsheet.com/"]
+      "urls": [
+        "https://www.appsheet.com/"
+      ]
     },
     {
-      "id": "kommo", "name": "Kommo CRM", "group": "tutu",
+      "id": "kommo",
+      "name": "Kommo CRM",
+      "group": "tutu",
       "desc": "CRM de Tutu (admtutuautomotores.kommo.com) con bot y automatización de CUIT.",
-      "urls": ["https://admtutuautomotores.kommo.com/"]
+      "urls": [
+        "https://admtutuautomotores.kommo.com/"
+      ]
     },
     {
-      "id": "twenty-crm", "name": "CRM Twenty", "group": "tutu",
+      "id": "twenty-crm",
+      "name": "CRM Twenty",
+      "group": "tutu",
       "desc": "CRM propio basado en Twenty (fork tutu-crm) en Railway.",
-      "repos": ["osmarfernandez2555-cpu/tutu-crm", "osmarfernandez2555-cpu/twenty"],
-      "railway": ["twenty", "tutu-crm"]
+      "repos": [
+        "osmarfernandez2555-cpu/tutu-crm",
+        "osmarfernandez2555-cpu/twenty"
+      ],
+      "railway": [
+        "twenty",
+        "tutu-crm"
+      ]
     },
     {
-      "id": "galpon-3d", "name": "Galpón 3D agentes", "group": "tutu",
+      "id": "galpon-3d",
+      "name": "Galpón 3D agentes",
+      "group": "tutu",
       "desc": "Dashboard 3D del galpón con un agente por área.",
-      "railway": ["galpon"]
+      "railway": [
+        "galpon"
+      ]
     },
     {
-      "id": "publicador", "name": "Publicador Marketplace", "group": "tutu",
+      "id": "publicador",
+      "name": "Publicador Marketplace",
+      "group": "tutu",
       "desc": "Publicador masivo de autos en Facebook Marketplace (tandas de 10).",
-      "railway": ["marketplace", "publicador"]
+      "railway": [
+        "marketplace",
+        "publicador"
+      ]
     },
     {
-      "id": "tutu-match", "name": "Tutu Match", "group": "tutu",
+      "id": "tutu-match",
+      "name": "Tutu Match",
+      "group": "tutu",
       "desc": "App estilo Tinder para publicar autos y hacer match con compradores.",
-      "railway": ["match"]
+      "railway": [
+        "match"
+      ]
     },
-
     {
-      "id": "tutu-wapp", "name": "Bot de ventas (tutu-wapp)", "group": "bots",
+      "id": "calculador-transferencias",
+      "name": "Calculador de transferencias",
+      "group": "tutu",
+      "desc": "Calculador de transferencias de Tutu Automotores en Railway.",
+      "railway": [
+        "calculador-transferencias"
+      ],
+      "repos": [
+        "osmarfernandez2555-cpu/calculador-transferencias"
+      ]
+    },
+    {
+      "id": "tutu-wapp",
+      "name": "Bot de ventas (tutu-wapp)",
+      "group": "bots",
       "desc": "Bot de WhatsApp de ventas en producción, instancia tutu-ventas2.",
-      "urls": ["https://tutu-wapp-production.up.railway.app"],
-      "railway": ["tutu-wapp"],
-      "evolution": { "url": "https://evolution-api-production-a132.up.railway.app", "instance": "tutu-ventas2" }
+      "urls": [
+        "https://tutu-wapp-production.up.railway.app"
+      ],
+      "railway": [
+        "tutu-wapp"
+      ],
+      "evolution": {
+        "url": "https://evolution-api-production-a132.up.railway.app",
+        "instance": "tutu-ventas2"
+      }
     },
     {
-      "id": "evolution-api", "name": "Evolution API", "group": "bots",
+      "id": "evolution-api",
+      "name": "Evolution API",
+      "group": "bots",
       "desc": "Servidor de WhatsApp (Evolution) que usan los bots.",
-      "urls": ["https://evolution-api-production-a132.up.railway.app"],
-      "railway": ["evolution"]
+      "urls": [
+        "https://evolution-api-production-a132.up.railway.app"
+      ],
+      "railway": [
+        "evolution"
+      ]
     },
     {
-      "id": "tutusita", "name": "Tutusita (chat agent)", "group": "bots",
+      "id": "tutusita",
+      "name": "Tutusita (chat agent)",
+      "group": "bots",
       "desc": "Bot de ventas con verificación BCRA y Panel de Ventas.",
-      "railway": ["tutu-chat", "tutu-ventas", "tutusita"]
+      "railway": [
+        "tutu-chat",
+        "tutu-ventas",
+        "tutusita"
+      ]
     },
     {
-      "id": "bcra-proxy", "name": "Proxy BCRA", "group": "bots",
+      "id": "bcra-proxy",
+      "name": "Proxy BCRA",
+      "group": "bots",
       "desc": "Proxy en Render para consultar la Central de Deudores del BCRA.",
-      "urls": ["https://tutu-bcra-proxy.onrender.com"]
+      "urls": [
+        "https://tutu-bcra-proxy.onrender.com"
+      ]
     },
     {
-      "id": "tutu-reventa", "name": "Bot de reventa", "group": "bots",
+      "id": "tutu-reventa",
+      "name": "Bot de reventa",
+      "group": "bots",
       "desc": "Lee grupos de reventa de WhatsApp y guarda los autos (Claude Haiku).",
-      "railway": ["reventa"]
+      "railway": [
+        "reventa"
+      ]
     },
     {
-      "id": "tutu-grupos", "name": "Bot de grupos", "group": "bots",
+      "id": "tutu-grupos",
+      "name": "Bot de grupos",
+      "group": "bots",
       "desc": "Lee grupos de WhatsApp y carga los autos al stock de Ruthina.",
-      "railway": ["grupos"]
+      "railway": [
+        "grupos"
+      ]
     },
-
     {
-      "id": "ayn-landing", "name": "Landing AyN", "group": "ayn",
+      "id": "ayn-landing",
+      "name": "Landing AyN",
+      "group": "ayn",
       "desc": "Landing de AyN Servicios Digitales (link de Instagram).",
-      "urls": ["https://osmarfernandez2555-cpu.github.io/ayn/"],
-      "repos": ["osmarfernandez2555-cpu/ayn"]
+      "urls": [
+        "https://osmarfernandez2555-cpu.github.io/ayn/"
+      ],
+      "repos": [
+        "osmarfernandez2555-cpu/ayn"
+      ]
     },
     {
-      "id": "estudio-ayn", "name": "Estudio AyN", "group": "ayn",
+      "id": "estudio-ayn",
+      "name": "Estudio AyN",
+      "group": "ayn",
       "desc": "App para crear y publicar carruseles y reels del Instagram de AyN.",
-      "railway": ["estudio", "instagram"]
+      "railway": [
+        "estudio",
+        "instagram"
+      ]
     },
     {
-      "id": "mis-finanzas", "name": "Mis Finanzas", "group": "ayn",
+      "id": "mis-finanzas",
+      "name": "Mis Finanzas",
+      "group": "ayn",
       "desc": "Planilla de finanzas personales con la marca de Natalia.",
-      "railway": ["finanzas"]
+      "railway": [
+        "finanzas"
+      ]
     },
-
     {
-      "id": "mai-alisados", "name": "Mai Alisados", "group": "clientes",
+      "id": "abel",
+      "name": "ABEL (este asistente)",
+      "group": "ayn",
+      "desc": "Tu asistente personal con voz y texto que revisa todos los proyectos.",
+      "railway": [
+        "asistente-personal-abel",
+        "abel-asistente"
+      ],
+      "repos": [
+        "osmarfernandez2555-cpu/asistente-personal-abel"
+      ]
+    },
+    {
+      "id": "mai-alisados",
+      "name": "Mai Alisados",
+      "group": "clientes",
       "desc": "Turnos de alisado (Citas de Keratina).",
-      "urls": ["https://natirodriguez32-sketch.github.io/mai-alisados/"],
-      "repos": ["natirodriguez32-sketch/mai-alisados"],
-      "railway": ["alisados"]
+      "urls": [
+        "https://natirodriguez32-sketch.github.io/mai-alisados/"
+      ],
+      "repos": [
+        "natirodriguez32-sketch/mai-alisados"
+      ],
+      "railway": [
+        "alisados"
+      ]
     },
     {
-      "id": "sunshine", "name": "Sunshine Moving", "group": "clientes",
+      "id": "sunshine",
+      "name": "Sunshine Moving",
+      "group": "clientes",
       "desc": "Landing de mudanzas con dominio sunshinemoving.us.",
-      "urls": ["https://sunshinemoving.us", "https://natirodriguez32-sketch.github.io/Sunshine-Moving/"],
-      "repos": ["natirodriguez32-sketch/Sunshine-Moving", "osmarfernandez2555-cpu/Sunshine-Moving"]
+      "urls": [
+        "https://sunshinemoving.us",
+        "https://natirodriguez32-sketch.github.io/Sunshine-Moving/"
+      ],
+      "repos": [
+        "natirodriguez32-sketch/Sunshine-Moving",
+        "osmarfernandez2555-cpu/Sunshine-Moving"
+      ]
     },
     {
-      "id": "ank", "name": "ANK Luxury", "group": "clientes",
+      "id": "ank",
+      "name": "ANK Luxury",
+      "group": "clientes",
       "desc": "Web de villas de lujo en Medellín y Florida.",
-      "urls": ["https://osmarfernandez2555-cpu.github.io/pagina-ANK-LUXURY-HOSPITALITY/"],
-      "repos": ["osmarfernandez2555-cpu/pagina-ANK-LUXURY-HOSPITALITY"]
+      "urls": [
+        "https://osmarfernandez2555-cpu.github.io/pagina-ANK-LUXURY-HOSPITALITY/"
+      ],
+      "repos": [
+        "osmarfernandez2555-cpu/pagina-ANK-LUXURY-HOSPITALITY"
+      ]
     },
     {
-      "id": "katerin", "name": "Citas Katerin", "group": "clientes",
+      "id": "katerin",
+      "name": "Citas Katerin",
+      "group": "clientes",
       "desc": "App de turnos para Katerin (colorimetría, balayage, alisados).",
-      "railway": ["katerin"]
+      "railway": [
+        "katerin"
+      ]
     },
     {
-      "id": "aline", "name": "ALINEMODASSS", "group": "clientes",
+      "id": "aline",
+      "name": "ALINEMODASSS",
+      "group": "clientes",
       "desc": "Tienda plus size atacado e varejo (PT-BR/ES)."
     },
     {
-      "id": "glamping", "name": "Glamping Americano", "group": "clientes",
+      "id": "glamping",
+      "name": "Glamping Americano",
+      "group": "clientes",
       "desc": "Web del Glamping Americano en Monte Hermoso."
     },
     {
-      "id": "shaddai", "name": "Shaddai", "group": "clientes",
+      "id": "shaddai",
+      "name": "Shaddai",
+      "group": "clientes",
       "desc": "Landing de productos y precios con WhatsApp."
     }
   ]

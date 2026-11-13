@@ -138,9 +138,22 @@ async function githubRepos() {
   return { repos: [...repos.values()].filter(r => !r.archived), errors };
 }
 
+async function findHtml(full) {
+  try {
+    const r = await fetchT(`https://api.github.com/repos/${full}/contents/`, { headers: ghHeaders() });
+    if (!r.ok) return null;
+    const files = (await r.json()).filter(f => f.type === 'file' && /\.html?$/i.test(f.name)).map(f => f.name);
+    return files.find(f => /^index\.html?$/i.test(f)) || files[0] || null;
+  } catch { return null; }
+}
+
 // ---------- Railway ----------
 const RW_SERVICES = `services { edges { node { id name serviceInstances { edges { node { environmentId domains { serviceDomains { domain } customDomains { domain } } latestDeployment { id status createdAt } } } } } } }`;
+const RW_ENVS = `environments { edges { node { id name } } }`;
 const RW_QUERIES = [
+  `query { projects { edges { node { id name ${RW_ENVS} ${RW_SERVICES} } } } }`,
+  `query { me { projects { edges { node { id name ${RW_ENVS} ${RW_SERVICES} } } } } }`,
+  `query { me { workspaces { id name projects { edges { node { id name ${RW_ENVS} ${RW_SERVICES} } } } } } }`,
   `query { projects { edges { node { id name ${RW_SERVICES} } } } }`,
   `query { me { projects { edges { node { id name ${RW_SERVICES} } } } } }`,
   `query { me { workspaces { id name projects { edges { node { id name ${RW_SERVICES} } } } } } }`,
@@ -149,7 +162,7 @@ function rwStatus(s) {
   const st = String(s || '').toUpperCase();
   if (st === 'SUCCESS') return { status: 'ok', note: 'Deploy activo' };
   if (st === 'SLEEPING') return { status: 'warn', note: 'Dormido (app serverless)' };
-  if (['BUILDING', 'DEPLOYING', 'INITIALIZING', 'QUEUED', 'WAITING'].includes(st)) return { status: 'warn', note: 'Desplegando…' };
+  if (['BUILDING', 'DEPLOYING', 'INITIALIZING', 'QUEUED', 'WAITING'].includes(st)) return { status: 'warn', note: 'Desplegando una versión nueva…', transient: true };
   if (st === 'FAILED') return { status: 'down', note: 'El último deploy FALLÓ (revisá Build Logs)' };
   if (st === 'CRASHED') return { status: 'down', note: 'La app se CAYÓ (revisá Deploy Logs)' };
   if (st === 'REMOVED' || st === 'REMOVING') return { status: 'unknown', note: 'Deploy eliminado' };
@@ -161,7 +174,7 @@ async function railwayServices() {
   const errors = [];
   for (const q of RW_QUERIES) {
     try {
-      const r = await fetchT('https://backboard.railway.com/graphql/v2', {
+      const r = await fetchT(process.env.RAILWAY_API_URL || 'https://backboard.railway.com/graphql/v2', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + RAILWAY_TOKEN },
         body: JSON.stringify({ query: q }),
@@ -175,18 +188,26 @@ async function railwayServices() {
         if (Array.isArray(o)) { o.forEach(walk); return; }
         if (o.name && o.services && o.services.edges && !seenProj.has(o.id)) {
           seenProj.add(o.id);
+          const envName = {};
+          (o.environments?.edges || []).forEach(e => { envName[e.node.id] = e.node.name; });
           for (const se of o.services.edges) {
-            const s = se.node; const domains = []; let dep = null;
-            for (const ie of (s.serviceInstances?.edges || [])) {
-              const inst = ie.node;
-              (inst.domains?.serviceDomains || []).forEach(d => domains.push(d.domain));
+            const s = se.node;
+            const insts = (s.serviceInstances?.edges || []).map(e => e.node).filter(Boolean);
+            const newest = arr => [...arr].sort((a, b) => String(b.latestDeployment?.createdAt || '').localeCompare(String(a.latestDeployment?.createdAt || '')))[0];
+            // solo el ambiente que usás: production, o el que tiene el último deploy bueno
+            const inst = insts.find(i => /^prod/i.test(envName[i.environmentId] || ''))
+              || newest(insts.filter(i => i.latestDeployment?.status === 'SUCCESS'))
+              || newest(insts);
+            const domains = [];
+            if (inst) {
               (inst.domains?.customDomains || []).forEach(d => domains.push(d.domain));
-              if (inst.latestDeployment && (!dep || inst.latestDeployment.createdAt > dep.createdAt)) dep = inst.latestDeployment;
+              (inst.domains?.serviceDomains || []).forEach(d => domains.push(d.domain));
             }
+            const dep = inst ? inst.latestDeployment : null;
             const st = rwStatus(dep && dep.status);
             services.push({
-              id: s.id, name: s.name, project: o.name, projectId: o.id,
-              domains: [...new Set(domains)], deployStatus: dep ? dep.status : null,
+              id: s.id, name: s.name, project: o.name, projectId: o.id, env: inst ? (envName[inst.environmentId] || null) : null,
+              domains: [...new Set(domains)], deployStatus: dep ? dep.status : null, transient: !!st.transient,
               deployedAt: dep ? dep.createdAt : null, status: st.status, note: st.note,
               link: `https://railway.com/project/${o.id}/service/${s.id}`,
             });
@@ -271,29 +292,58 @@ async function runChecks() {
       projects.push(byId[id]);
     }
 
-    // armar lista de URLs a chequear
+    // armar lista de links a chequear, recordando de dónde sale cada uno
+    const norm = u => u.toLowerCase().replace(/\/$/, '');
     for (const p of projects) {
-      for (const r of p._repos) {
-        if (r.pages && !p.urls.some(u => u.toLowerCase().replace(/\/$/, '') === r.pages.toLowerCase().replace(/\/$/, ''))) p.urls.push(r.pages);
-      }
-      for (const s of p._rail) {
-        for (const d of s.domains) {
-          const u = 'https://' + d;
-          if (!p.urls.some(x => x.toLowerCase().startsWith(u.toLowerCase()))) p.urls.push(u);
-        }
-      }
+      p._targets = p.urls.map(url => ({ url, src: 'config' }));
+      const has = u => p._targets.some(t => norm(t.url) === norm(u) || norm(u).startsWith(norm(t.url)));
+      for (const sv of p._rail) for (const d of sv.domains) { const u = 'https://' + d; if (!has(u)) p._targets.push({ url: u, src: 'railway', svc: sv.id }); }
+      for (const r of p._repos) if (r.pages && !has(r.pages)) p._targets.push({ url: r.pages, src: 'pages', repo: r.full });
     }
-    const allUrls = [...new Set(projects.flatMap(p => p.urls))];
+    const allUrls = [...new Set(projects.flatMap(p => p._targets.map(t => t.url)))];
     const results = await pool(allUrls, 8, checkUrl);
     const urlMap = Object.fromEntries(results.map(r => [r.url, r]));
+
+    // GitHub Pages sin index.html: buscar el .html que sí existe (ej. mis-finanzas.html)
+    const pagesMiss = projects.flatMap(p => p._targets.filter(t => t.src === 'pages' && urlMap[t.url] && urlMap[t.url].code === 404));
+    await pool(pagesMiss, 4, async t => {
+      const file = await findHtml(t.repo);
+      if (!file) { urlMap[t.url] = { ...urlMap[t.url], note: 'GitHub Pages activado pero el repo no tiene ninguna página .html' }; return; }
+      const u = t.url.replace(/\/?$/, '/') + encodeURI(file);
+      if (!urlMap[u]) urlMap[u] = await checkUrl(u);
+      t.url = u;
+    });
 
     // bots de WhatsApp
     await pool(projects.filter(p => p.evolution), 3, async p => { p._evo = await evolutionState(p.evolution); });
 
+    const BEST = { ok: 3, warn: 2, down: 1, code: 0, unknown: 0 };
     const out = projects.map(p => {
-      const checks = p.urls.map(u => urlMap[u]).filter(Boolean);
-      const railway = p._rail.map(({ id, name, project, domains, deployStatus, deployedAt, status, note, link }) => ({ id, name, project, domains, deployStatus, deployedAt, status, note, link }));
-      const statuses = [...checks.map(c => c.status), ...railway.filter(s => s.status !== 'unknown').map(s => s.status)];
+      const checks = p._targets.map(t => urlMap[t.url] && ({ ...urlMap[t.url], src: t.src, svc: t.svc })).filter(Boolean);
+      const counted = [];
+      for (const c of checks.filter(c => c.src === 'config')) counted.push(c);
+      // varios dominios del mismo servicio: alcanza con que uno ande
+      for (const sv of p._rail) {
+        const mine = checks.filter(c => c.src === 'railway' && c.svc === sv.id);
+        if (!mine.length) continue;
+        const best = mine.reduce((a, b) => (BEST[b.status] > BEST[a.status] ? b : a));
+        counted.push(best);
+        mine.filter(c => c !== best && c.status === 'down' && best.status !== 'down')
+          .forEach(c => { c.ignored = true; c.note += ' · dominio sin uso, no cuenta (podés borrarlo en Railway)'; });
+      }
+      // las páginas de GitHub de repos secundarios solo cuentan si no hay nada mejor para revisar
+      const pagesChecks = checks.filter(c => c.src === 'pages');
+      if (!counted.length) counted.push(...pagesChecks);
+      else pagesChecks.forEach(c => { c.ignored = true; c.note += ' · repo secundario, no cuenta'; });
+      for (const c of checks) delete c.svc;
+
+      const railway = p._rail.map(({ id, name, project, env, domains, deployStatus, deployedAt, status, note, link, transient }) => ({ id, name, project, env, domains, deployStatus, deployedAt, status, note, link, transient }));
+      const anyOk = counted.some(c => c.status === 'ok');
+      const statuses = [
+        ...counted.map(c => c.status),
+        // si la app responde, un deploy en curso no es un problema (la versión anterior sigue andando)
+        ...railway.filter(sv => sv.status !== 'unknown' && !(sv.transient && anyOk)).map(sv => sv.status),
+      ];
       if (p._evo && p._evo.status !== 'unknown') statuses.push(p._evo.status);
       let status = worst(statuses);
       if (status === 'unknown' && p._repos.length) status = 'code';
@@ -368,7 +418,7 @@ function snapshotText() {
   const S = { ok: 'FUNCIONA', warn: 'CON PROBLEMAS', down: 'CAÍDO', code: 'SOLO CÓDIGO (sin web para revisar)', unknown: 'SIN DATOS' };
   const lines = SNAPSHOT.projects.map(p => {
     const det = [
-      ...p.checks.filter(c => c.status !== 'ok').map(c => `${c.url}: ${c.note}`),
+      ...p.checks.filter(c => c.status !== 'ok' && !c.ignored).map(c => `${c.url}: ${c.note}`),
       ...p.railway.filter(s => s.status !== 'ok').map(s => `Railway ${s.project}/${s.name}: ${s.note}`),
       p.whatsapp && p.whatsapp.status !== 'ok' ? p.whatsapp.note : '',
     ].filter(Boolean).join('; ');
