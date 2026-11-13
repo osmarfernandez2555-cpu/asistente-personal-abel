@@ -403,6 +403,7 @@ function openPanel(id, keep){
     el.innerHTML = `<div class="ph"><button class="x" data-close aria-label="Cerrar detalle">${ICON_X}</button><h2>${meta.name}</h2>
       <div class="sub"><span class="badge"><span class="dot s-${v.status}" aria-hidden="true"></span>${LABEL[v.status]}</span>Infraestructura</div><p>${esc(meta.desc)}</p></div>
       <div class="pb"><div class="sec"><h3>Detalle</h3><div class="row"><span class="dot s-${v.status}" aria-hidden="true"></span><div class="t">${esc(v.note)}</div></div></div>
+      ${key === 'whatsapp' ? alertsHtml() : ''}
       <div class="acts"><button class="btn primary" data-ask="¿Qué pasa con ${esc(meta.name)} y qué tengo que hacer?">Preguntarle a ABEL</button></div></div>`;
   } else {
     const p = projById(id); if (!p){ closePanel(); return; }
@@ -423,10 +424,32 @@ function openPanel(id, keep){
       </div>`;
   }
   el.querySelector('[data-close]').onclick = closePanel;
+  el.querySelectorAll('[data-alert]').forEach(b => b.onclick = () => alertAction(b));
   el.querySelectorAll('[data-ask]').forEach(b => b.onclick = () => ask(b.dataset.ask));
   if (!keep){ closeSide($('#list')); $('#btnList').setAttribute('aria-expanded','false'); openSide(el); }
 }
 function closePanel(){ panelId = null; focusId = null; closeSide($('#panel')); }
+
+function alertsHtml(){
+  const a = DATA.alerts;
+  if (!a) return '';
+  if (!a.enabled) return `<div class="sec"><h3>Alertas por WhatsApp</h3><div class="row"><span class="dot s-unknown" aria-hidden="true"></span><div class="t">Apagadas. Para activarlas cargá en Railway: <span class="mono">${a.missing.map(esc).join(', ')}</span><div>Los pasos están en el README del repo.</div></div></div></div>`;
+  const extra = [a.dailyHour != null ? `reporte diario a las ${a.dailyHour} h` : '', a.remindHours ? `recordatorio cada ${a.remindHours} h si sigue caída` : ''].filter(Boolean).join(' · ');
+  return `<div class="sec"><h3>Alertas por WhatsApp</h3>
+    <div class="row"><span class="dot s-${a.lastError ? 'down' : 'ok'}" aria-hidden="true"></span><div class="t">Activadas: te escribe la instancia <b>${esc(a.instance)}</b> al número terminado en ${a.to.map(n => esc(n.replace('…',''))).join(', ')}<div>${esc(extra)}${a.lastSent ? ` · último envío ${ago(a.lastSent)}` : ''}</div>${a.lastError ? `<div style="color:var(--down)">No se pudo mandar: ${esc(a.lastError)}</div>` : ''}</div></div>
+    <div class="acts" style="margin-top:10px"><button class="btn" data-alert="test">Mandar mensaje de prueba</button><button class="btn" data-alert="report">Mandar el reporte ahora</button></div></div>`;
+}
+async function alertAction(b){
+  const kind = b.dataset.alert, label = b.textContent;
+  b.disabled = true; b.textContent = 'Enviando…';
+  try{
+    const r = await api(kind === 'test' ? '/api/alert-test' : '/api/alert-report', { method:'POST' });
+    if (r.alerts) DATA.alerts = r.alerts;
+    toast(r.ok ? 'Mensaje enviado por WhatsApp' : 'No se pudo mandar: ' + r.error, r.ok ? 'ok' : 'down');
+  }catch(e){ if (e.message !== 'login') toast('No hay conexión con el servidor', 'down'); }
+  b.disabled = false; b.textContent = label;
+  if (panelId === 'infra-whatsapp') openPanel('infra-whatsapp', true);
+}
 
 let listFilter = null;
 function renderList(only){

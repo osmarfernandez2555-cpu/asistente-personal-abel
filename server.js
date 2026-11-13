@@ -18,6 +18,15 @@ const CLAUDE_MODEL = process.env.CLAUDE_MODEL || 'claude-sonnet-5-5';
 const EVOLUTION_API_KEY = process.env.EVOLUTION_API_KEY || '';
 const CHECK_EVERY_MIN = Math.max(1, Number(process.env.CHECK_EVERY_MIN || 5));
 
+// alertas por WhatsApp
+const ALERT_TO = (process.env.ALERT_WHATSAPP_TO || '').split(',').map(s => s.replace(/\D/g, '')).filter(Boolean);
+const ALERT_INSTANCE = process.env.ALERT_EVOLUTION_INSTANCE || '';
+const ALERT_EVO_URL_ENV = process.env.ALERT_EVOLUTION_URL || '';
+const ALERT_CONFIRM = Math.max(1, Number(process.env.ALERT_CONFIRM_CHECKS || 2));
+const ALERT_REMIND_HOURS = Number(process.env.ALERT_REMIND_HOURS ?? 6);
+const ALERT_DAILY_HOUR = (process.env.ALERT_DAILY_HOUR ?? '9').trim();
+const PUBLIC_URL = process.env.PUBLIC_URL || (process.env.RAILWAY_PUBLIC_DOMAIN ? 'https://' + process.env.RAILWAY_PUBLIC_DOMAIN : '');
+
 const CONFIG_PATH = path.join(__dirname, 'projects.json');
 
 // ---------- utilidades ----------
@@ -383,6 +392,8 @@ async function runChecks() {
       },
     };
     console.log(`[abel] chequeo listo en ${SNAPSHOT.tookMs} ms →`, JSON.stringify(summary));
+    processAlerts(out).catch(e => console.error('[abel] alertas', e));
+    SNAPSHOT.alerts = alertInfo();
   } catch (e) {
     console.error('[abel] error en chequeo', e);
     SNAPSHOT.checking = false;
@@ -390,6 +401,118 @@ async function runChecks() {
   }
   return SNAPSHOT;
 }
+
+// ---------- alertas por WhatsApp ----------
+const ALERT = { state: new Map(), booted: false, lastSent: null, lastError: null, recheckTimer: null, lastDaily: null };
+function alertEvoUrl() {
+  if (ALERT_EVO_URL_ENV) return ALERT_EVO_URL_ENV.replace(/\/$/, '');
+  try { const p = loadConfig().projects.find(x => x.evolution && x.evolution.url); return p ? p.evolution.url.replace(/\/$/, '') : ''; } catch { return ''; }
+}
+function alertMissing() {
+  const m = [];
+  if (!ALERT_TO.length) m.push('ALERT_WHATSAPP_TO');
+  if (!ALERT_INSTANCE) m.push('ALERT_EVOLUTION_INSTANCE');
+  if (!EVOLUTION_API_KEY) m.push('EVOLUTION_API_KEY');
+  if (!alertEvoUrl()) m.push('ALERT_EVOLUTION_URL');
+  return m;
+}
+function alertInfo() {
+  const missing = alertMissing();
+  return {
+    enabled: !missing.length, missing, instance: ALERT_INSTANCE || null,
+    to: ALERT_TO.map(n => '…' + n.slice(-4)), lastSent: ALERT.lastSent, lastError: ALERT.lastError,
+    dailyHour: /^\d{1,2}$/.test(ALERT_DAILY_HOUR) ? Number(ALERT_DAILY_HOUR) : null, remindHours: ALERT_REMIND_HOURS || null,
+  };
+}
+async function sendWhatsApp(text) {
+  const missing = alertMissing();
+  if (missing.length) throw new Error('Faltan variables: ' + missing.join(', '));
+  const url = `${alertEvoUrl()}/message/sendText/${encodeURIComponent(ALERT_INSTANCE)}`;
+  const headers = { 'Content-Type': 'application/json', apikey: EVOLUTION_API_KEY };
+  for (const number of ALERT_TO) {
+    let r = await fetchT(url, { method: 'POST', headers, body: JSON.stringify({ number, text }) }, 20000);
+    if (r.status === 400) { // Evolution v1 usa otro formato
+      r = await fetchT(url, { method: 'POST', headers, body: JSON.stringify({ number, textMessage: { text } }) }, 20000);
+    }
+    if (!r.ok) {
+      const body = (await r.text().catch(() => '')).slice(0, 200);
+      throw new Error(`Evolution respondió ${r.status}${r.status === 404 ? ' (¿la instancia existe y está conectada?)' : r.status === 401 ? ' (apikey incorrecta)' : ''}: ${body}`);
+    }
+  }
+  ALERT.lastSent = new Date().toISOString(); ALERT.lastError = null;
+}
+async function safeSend(text) {
+  try { await sendWhatsApp(text); console.log('[abel] alerta enviada'); }
+  catch (e) { ALERT.lastError = e.message; console.error('[abel] no se pudo mandar la alerta:', e.message); }
+  if (SNAPSHOT) SNAPSHOT.alerts = alertInfo();
+}
+function reasonText(p) {
+  const c = p.checks.find(c => c.status === 'down' && !c.ignored) || p.railway.find(s => s.status === 'down') || (p.whatsapp && p.whatsapp.status === 'down' ? p.whatsapp : null);
+  return c ? c.note : 'No responde';
+}
+function linkOf(p) { const c = p.checks.find(c => !c.ignored); return c ? c.url : (p.railway[0] ? p.railway[0].link : ''); }
+function duration(fromMs) {
+  const m = Math.max(1, Math.round((Date.now() - fromMs) / 60000));
+  if (m < 60) return `${m} min`;
+  const h = Math.floor(m / 60), r = m % 60;
+  return h < 48 ? `${h} h${r ? ' ' + r + ' min' : ''}` : `${Math.round(h / 24)} días`;
+}
+const footer = () => PUBLIC_URL ? `\n\nAbrí ABEL: ${PUBLIC_URL}` : '';
+
+async function processAlerts(projects) {
+  if (alertMissing().length) { ALERT.booted = true; return; }
+  const now = Date.now(), newDown = [], recovered = [], remind = [];
+  let suspect = false;
+  for (const p of projects) {
+    if (p.status === 'code' || p.status === 'unknown') continue;
+    const st = ALERT.state.get(p.id) || { status: null, streak: 0, alerted: false, downSince: null, lastRemind: 0 };
+    if (p.status === 'down') {
+      st.streak = st.status === 'down' ? st.streak + 1 : 1;
+      if (!st.downSince) st.downSince = now;
+      if (!ALERT.booted) { st.alerted = true; st.lastRemind = now; } // al arrancar no avisa lo que ya estaba caído
+      else if (!st.alerted && st.streak >= ALERT_CONFIRM) { newDown.push(p); st.alerted = true; st.lastRemind = now; }
+      else if (!st.alerted) suspect = true;
+      else if (ALERT_REMIND_HOURS > 0 && now - st.lastRemind > ALERT_REMIND_HOURS * 3600e3) { remind.push({ p, since: st.downSince }); st.lastRemind = now; }
+    } else {
+      if (st.alerted && p.status === 'ok') recovered.push({ p, since: st.downSince });
+      if (p.status === 'ok') { st.alerted = false; st.downSince = null; }
+      st.streak = 0;
+    }
+    st.status = p.status;
+    ALERT.state.set(p.id, st);
+  }
+  ALERT.booted = true;
+  // algo parece caído: confirmarlo en 1 minuto en vez de esperar el próximo chequeo
+  if (suspect && !ALERT.recheckTimer) ALERT.recheckTimer = setTimeout(() => { ALERT.recheckTimer = null; runChecks(); }, 60000);
+
+  const parts = [];
+  if (newDown.length) parts.push(newDown.length === 1
+    ? `🔴 *Se cayó ${newDown[0].name}*\n${reasonText(newDown[0])}${linkOf(newDown[0]) ? '\n' + linkOf(newDown[0]) : ''}`
+    : `🔴 *Se cayeron ${newDown.length} apps*\n` + newDown.map(p => `• *${p.name}*: ${reasonText(p)}`).join('\n'));
+  if (recovered.length) parts.push(recovered.map(({ p, since }) => `🟢 *${p.name} volvió a funcionar*${since ? ` (estuvo caída ${duration(since)})` : ''}`).join('\n'));
+  if (remind.length) parts.push(`⏰ *Siguen caídas*\n` + remind.map(({ p, since }) => `• *${p.name}* hace ${duration(since)}: ${reasonText(p)}`).join('\n'));
+  if (parts.length) await safeSend(parts.join('\n\n') + footer());
+}
+
+function dailyReport() {
+  const s = SNAPSHOT.summary || {};
+  const down = SNAPSHOT.projects.filter(p => p.status === 'down');
+  const warn = SNAPSHOT.projects.filter(p => p.status === 'warn');
+  const fecha = new Date().toLocaleDateString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', weekday: 'long', day: 'numeric', month: 'numeric' });
+  let t = `📋 *Reporte de ABEL* · ${fecha}\n✅ ${s.ok || 0} funcionan · ⚠️ ${s.warn || 0} con problemas · 🔴 ${s.down || 0} caídas`;
+  if (down.length) t += `\n\n*Caídas*\n` + down.map(p => `• ${p.name}: ${reasonText(p)}`).join('\n');
+  if (warn.length) t += `\n\n*Con problemas*\n` + warn.map(p => `• ${p.name}`).join('\n');
+  if (!down.length && !warn.length) t += `\n\nTodo en orden 👌`;
+  const inf = Object.entries(SNAPSHOT.infra || {}).filter(([, v]) => v.status === 'down' || v.status === 'warn');
+  if (inf.length) t += `\n\n*Infraestructura*\n` + inf.map(([k, v]) => `• ${k}: ${v.note}`).join('\n');
+  return t + footer();
+}
+setInterval(() => {
+  if (!/^\d{1,2}$/.test(ALERT_DAILY_HOUR) || alertMissing().length || !SNAPSHOT.updatedAt) return;
+  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Argentina/Buenos_Aires', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hourCycle: 'h23' }).formatToParts(new Date()).map(x => [x.type, x.value]));
+  const day = `${parts.year}-${parts.month}-${parts.day}`;
+  if (Number(parts.hour) === Number(ALERT_DAILY_HOUR) && ALERT.lastDaily !== day) { ALERT.lastDaily = day; safeSend(dailyReport()); }
+}, 60000);
 
 // ---------- servidor ----------
 const app = express();
@@ -413,6 +536,17 @@ app.post('/api/login', (req, res) => {
 app.get('/api/status', auth, (req, res) => res.json(SNAPSHOT));
 app.post('/api/refresh', auth, async (req, res) => res.json(await runChecks()));
 app.get('/health', (req, res) => res.json({ ok: true }));
+app.post('/api/alert-test', auth, async (req, res) => {
+  try {
+    await sendWhatsApp(`✅ *Prueba de ABEL*\nLas alertas por WhatsApp funcionan. Te aviso acá si se cae alguna app.${footer()}`);
+    SNAPSHOT.alerts = alertInfo();
+    res.json({ ok: true, alerts: SNAPSHOT.alerts });
+  } catch (e) { ALERT.lastError = e.message; SNAPSHOT.alerts = alertInfo(); res.status(400).json({ ok: false, error: e.message, alerts: SNAPSHOT.alerts }); }
+});
+app.post('/api/alert-report', auth, async (req, res) => {
+  try { await sendWhatsApp(dailyReport()); res.json({ ok: true }); }
+  catch (e) { res.status(400).json({ ok: false, error: e.message }); }
+});
 
 function snapshotText() {
   const S = { ok: 'FUNCIONA', warn: 'CON PROBLEMAS', down: 'CAÍDO', code: 'SOLO CÓDIGO (sin web para revisar)', unknown: 'SIN DATOS' };
@@ -425,7 +559,9 @@ function snapshotText() {
     return `- [${p.id}] ${p.name} (${p.group}): ${S[p.status]}${det ? ' — ' + det : ''}${p.lastPush ? ` · último cambio en GitHub ${p.lastPush.slice(0, 10)}` : ''}${p.desc ? ' · ' + p.desc : ''}`;
   });
   const inf = Object.entries(SNAPSHOT.infra || {}).map(([k, v]) => `- ${k}: ${S[v.status] || v.status} — ${v.note}`);
-  return `Último chequeo: ${SNAPSHOT.updatedAt || 'todavía no'}\nResumen: ${JSON.stringify(SNAPSHOT.summary)}\n\nINFRAESTRUCTURA\n${inf.join('\n')}\n\nPROYECTOS\n${lines.join('\n')}`;
+  const al = SNAPSHOT.alerts || alertInfo();
+  const alertLine = al.enabled ? `Alertas por WhatsApp: ACTIVADAS (instancia ${al.instance}${al.dailyHour != null ? ', reporte diario a las ' + al.dailyHour + ' h' : ''}${al.lastError ? ', último error: ' + al.lastError : ''}). El usuario puede mandar una prueba desde la chapita WhatsApp.` : `Alertas por WhatsApp: APAGADAS, faltan las variables ${al.missing.join(', ')} en Railway.`;
+  return `${alertLine}\nÚltimo chequeo: ${SNAPSHOT.updatedAt || 'todavía no'}\nResumen: ${JSON.stringify(SNAPSHOT.summary)}\n\nINFRAESTRUCTURA\n${inf.join('\n')}\n\nPROYECTOS\n${lines.join('\n')}`;
 }
 
 app.post('/api/chat', auth, async (req, res) => {

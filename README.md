@@ -44,6 +44,46 @@ Tu asistente personal con voz y texto. Muestra todos tus proyectos como una red 
 - Railway: railway.com → tu foto → Account Settings → Tokens → Create Token. Elegí tu cuenta personal (no un token de proyecto). Con esto ABEL ve TODOS tus servicios, si el último deploy salió bien, falló o se cayó, y sus dominios.
 - Evolution API: es la variable `AUTHENTICATION_API_KEY` del servicio de Evolution en Railway.
 
+## Alertas por WhatsApp
+
+ABEL te escribe por WhatsApp usando tu Evolution API:
+
+- 🔴 Cuando se cae una app. Antes de avisar lo confirma con un segundo chequeo al minuto, para no mandar falsas alarmas.
+- 🟢 Cuando vuelve, con cuánto tiempo estuvo caída.
+- ⏰ Si sigue caída, te lo recuerda cada 6 horas.
+- 📋 Un reporte diario a las 9 de la mañana (hora de Argentina) con el resumen de todo.
+
+Al arrancar o redesplegar no avisa lo que ya estaba caído; eso aparece en el reporte diario.
+
+### Variables para activarlas
+
+- `ALERT_WHATSAPP_TO`: tu número con código de país, sin 0 ni 15. Para Argentina: 549 + característica + número, por ejemplo `5493511234567`. Para avisar a varias personas, separalos con comas.
+- `ALERT_EVOLUTION_INSTANCE`: la instancia de Evolution que manda los avisos.
+- `EVOLUTION_API_KEY`: la apikey global de Evolution (la misma que ya usa ABEL para ver si WhatsApp está conectado).
+- Opcionales:
+  - `ALERT_EVOLUTION_URL`: si no la ponés, usa la de Evolution que figura en `projects.json`.
+  - `ALERT_DAILY_HOUR`: hora del reporte diario (por defecto `9`; poné `off` para no recibirlo).
+  - `ALERT_REMIND_HOURS`: cada cuántas horas recordar algo caído (por defecto `6`; `0` lo apaga).
+  - `ALERT_CONFIRM_CHECKS`: cuántos chequeos seguidos tienen que dar caído antes de avisar (por defecto `2`).
+
+### Qué instancia usar
+
+- Lo mejor es una instancia nueva en Evolution, por ejemplo `alertas`, con un chip aparte. Así los avisos no salen del número de ventas y te suenan como cualquier mensaje.
+- Si usás la del bot de ventas (`tutu-ventas2`), funciona igual, pero no le respondas a los avisos: el bot te va a contestar como si fueras un cliente.
+- No conectes la instancia con tu propio número: WhatsApp no te notifica los mensajes que te mandás a vos mismo.
+
+### Cómo probar
+
+En ABEL tocá la chapita **WhatsApp**. Ahí ves si las alertas están activadas y tenés los botones **Mandar mensaje de prueba** y **Mandar el reporte ahora**.
+
+### Si no llegan
+
+- "Faltan variables": cargá las que dice el panel en Railway.
+- "Evolution respondió 401": la `EVOLUTION_API_KEY` está mal.
+- "Evolution respondió 404": el nombre de la instancia está mal escrito o la instancia no existe.
+- "Evolution respondió 400" o el mensaje no llega: revisá el número (549 + característica + número) y que la instancia esté conectada (estado `open`, si no hay que escanear el QR).
+- Si la instancia se desconecta, ABEL no puede avisarte por WhatsApp; lo vas a ver en rojo en la chapita WhatsApp de la página.
+
 ## Cómo agregar o corregir un proyecto
 
 Editá `projects.json`. Cada proyecto tiene:
