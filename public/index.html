@@ -414,7 +414,7 @@ function openPanel(id, keep){
       <div class="sub"><span class="badge"><span class="dot s-${v.status}" aria-hidden="true"></span>${LABEL[v.status]}</span>Infraestructura</div><p>${esc(meta.desc)}</p></div>
       <div class="pb"><div class="sec"><h3>Detalle</h3><div class="row"><span class="dot s-${v.status}" aria-hidden="true"></span><div class="t">${esc(v.note)}</div></div></div>
       ${key === 'whatsapp' ? alertsHtml() : ''}
-      <div class="acts"><button class="btn primary" data-ask="¿Qué pasa con ${esc(meta.name)} y qué tengo que hacer?">Preguntarle a ABEL</button></div></div>`;
+      <div class="acts">${v.manager ? `<a class="btn solid" href="${esc(v.manager)}" target="_blank" rel="noopener">Abrir Evolution Manager</a>` : ''}<button class="btn primary" data-ask="¿Qué pasa con ${esc(meta.name)} y qué tengo que hacer?">Preguntarle a ABEL</button></div></div>`;
   } else {
     const p = projById(id); if (!p){ closePanel(); return; }
     const checks = p.checks.length ? p.checks.map(c => `<div class="row"${c.ignored ? ' style="opacity:.6"' : ''}><span class="dot s-${c.ignored ? 'unknown' : c.status}" aria-hidden="true"></span><div class="t"><a href="${esc(c.url)}" target="_blank" rel="noopener">${esc(c.url.replace(/^https?:\/\//,'').replace(/\/$/,''))}</a><div>${esc(c.note)} · <span class="mono num">${c.code||'sin respuesta'} · ${c.ms} ms</span></div></div></div>`).join('') : '<div class="empty">No tiene links para revisar. Agregalos en projects.json.</div>';
@@ -425,7 +425,7 @@ function openPanel(id, keep){
     el.innerHTML = `<div class="ph"><button class="x" data-close aria-label="Cerrar detalle">${ICON_X}</button><h2>${esc(p.name)}</h2>
       <div class="sub"><span class="badge"><span class="dot s-${p.status}" aria-hidden="true"></span>${LABEL[p.status]}</span>${esc(groupName(p.group))}${p.auto ? ' · descubierto' : ''}</div>${p.desc ? `<p>${esc(p.desc)}</p>` : ''}</div>
       <div class="pb">
-        <div class="acts">${p.open ? `<a class="btn solid" href="${esc(p.open)}" target="_blank" rel="noopener">Abrir ${esc(p.name)}</a>` : ''}<button class="btn" data-ask="¿Cómo está ${esc(p.name)}? Si algo falla, decime cómo arreglarlo.">Preguntarle a ABEL</button></div>
+        <div class="acts">${p.open ? `<a class="btn solid" href="${esc(p.open)}" target="_blank" rel="noopener">${/\/manager\/?$/.test(p.open) ? 'Abrir Evolution Manager' : 'Abrir ' + esc(p.name)}</a>` : ''}<button class="btn" data-ask="¿Cómo está ${esc(p.name)}? Si algo falla, decime cómo arreglarlo.">Preguntarle a ABEL</button></div>
         <div class="sec"><h3>Links revisados</h3>${checks}</div>
         ${rail ? `<div class="sec"><h3>Railway</h3>${rail}</div>` : ''}
         ${wa}

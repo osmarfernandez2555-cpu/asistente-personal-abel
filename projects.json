@@ -12,6 +12,11 @@
       "color": "#25d366"
     },
     {
+      "id": "whatsapp",
+      "name": "Números de WhatsApp",
+      "color": "#4ade80"
+    },
+    {
       "id": "ayn",
       "name": "AyN",
       "color": "#a78bfa"
@@ -208,7 +213,7 @@
       "id": "evolution-api",
       "name": "Evolution API",
       "group": "bots",
-      "desc": "Servidor de WhatsApp (Evolution) que usan los bots.",
+      "desc": "Servidor de WhatsApp (Evolution) con todos los números conectados. Abrir lleva al Manager.",
       "urls": [
         "https://evolution-api-production-a132.up.railway.app"
       ],

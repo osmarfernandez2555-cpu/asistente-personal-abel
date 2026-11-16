@@ -16,6 +16,7 @@ const RAILWAY_TOKEN = process.env.RAILWAY_TOKEN || '';
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || '';
 const CLAUDE_MODEL = process.env.CLAUDE_MODEL || 'claude-sonnet-5-5';
 const EVOLUTION_API_KEY = process.env.EVOLUTION_API_KEY || '';
+const EVOLUTION_URL = process.env.EVOLUTION_URL || '';
 const CHECK_EVERY_MIN = Math.max(1, Number(process.env.CHECK_EVERY_MIN || 5));
 
 // alertas por WhatsApp
@@ -245,6 +246,46 @@ async function evolutionState(evo) {
   } catch (e) { return { status: 'down', note: 'No se pudo consultar Evolution API' }; }
 }
 
+function evoBaseUrl(cfg) {
+  if (EVOLUTION_URL) return EVOLUTION_URL.replace(/\/(manager\/?)?$/, '').replace(/\/$/, '');
+  if (process.env.ALERT_EVOLUTION_URL) return process.env.ALERT_EVOLUTION_URL.replace(/\/$/, '');
+  try {
+    cfg = cfg || loadConfig();
+    const p = cfg.projects.find(x => x.evolution && x.evolution.url) || cfg.projects.find(x => x.id === 'evolution-api' && x.urls.length);
+    return p ? (p.evolution ? p.evolution.url : p.urls[0]).replace(/\/(manager\/?)?$/, '').replace(/\/$/, '') : '';
+  } catch { return ''; }
+}
+function fmtPhone(jid) {
+  const n = String(jid || '').split('@')[0].replace(/\D/g, '');
+  if (!n) return '';
+  const m = n.match(/^549(\d{2,4})(\d{6,8})$/);
+  return m ? `+54 9 ${m[1]} ${m[2]}` : '+' + n;
+}
+async function evolutionInstances(cfg) {
+  const base = evoBaseUrl(cfg);
+  if (!base) return { list: [], error: 'No sé la dirección de Evolution (EVOLUTION_URL)', base };
+  if (!EVOLUTION_API_KEY) return { list: [], error: 'Falta EVOLUTION_API_KEY para leer los números de Evolution', base };
+  try {
+    const r = await fetchT(`${base}/instance/fetchInstances`, { headers: { apikey: EVOLUTION_API_KEY } }, 15000);
+    if (r.status === 401 || r.status === 403) return { list: [], error: 'Evolution rechazó la EVOLUTION_API_KEY (¿es la global, AUTHENTICATION_API_KEY?)', base };
+    if (!r.ok) return { list: [], error: `Evolution respondió ${r.status} al listar los números`, base };
+    const j = await r.json();
+    const arr = Array.isArray(j) ? j : (j.instances || j.data || []);
+    const list = arr.map(x => {
+      const i = x.instance || x; // v1 viene envuelto en "instance"
+      const name = i.name || i.instanceName;
+      const state = String(i.connectionStatus || i.status || i.state || '').toLowerCase();
+      return { name, state, phone: fmtPhone(i.ownerJid || i.owner || i.number), profile: i.profileName || '' };
+    }).filter(i => i.name);
+    return { list, error: null, base };
+  } catch (e) { return { list: [], error: 'No se pudo conectar con Evolution para listar los números', base }; }
+}
+function evoStateOf(i) {
+  if (i.state === 'open') return { status: 'ok', note: `Conectado${i.phone ? ' · ' + i.phone : ''}` };
+  if (i.state === 'connecting') return { status: 'warn', note: 'Conectando… si sigue así, escaneá el QR en Evolution Manager' };
+  return { status: 'down', note: `WhatsApp ${i.name} DESCONECTADO: escaneá el QR en Evolution Manager` };
+}
+
 // ---------- Claude ----------
 async function claudeState() {
   if (!ANTHROPIC_API_KEY) return { status: 'unknown', note: 'Falta ANTHROPIC_API_KEY (el chat no va a pensar)' };
@@ -266,7 +307,7 @@ async function runChecks() {
   const started = Date.now();
   try {
     const cfg = loadConfig();
-    const [gh, rw, claude] = await Promise.all([githubRepos(), railwayServices(), claudeState()]);
+    const [gh, rw, claude, evoAll] = await Promise.all([githubRepos(), railwayServices(), claudeState(), evolutionInstances(cfg)]);
 
     const projects = cfg.projects.map(p => ({ ...p, _repos: [], _rail: [], urls: [...p.urls] }));
     const byId = Object.fromEntries(projects.map(p => [p.id, p]));
@@ -301,6 +342,25 @@ async function runChecks() {
       projects.push(byId[id]);
     }
 
+    // cada número conectado en Evolution es un nodo propio
+    const managerUrl = evoAll.base ? evoAll.base + '/manager/' : null;
+    const referenced = new Set(projects.filter(p => p.evolution).map(p => String(p.evolution.instance).toLowerCase()));
+    for (const inst of evoAll.list) {
+      const st = evoStateOf(inst);
+      // si la instancia ya la usa un bot de la lista, se muestra en ese bot
+      const owner = projects.find(p => p.evolution && String(p.evolution.instance).toLowerCase() === inst.name.toLowerCase());
+      if (owner) { owner._evoInst = inst; continue; }
+      if (referenced.has(inst.name.toLowerCase())) continue;
+      const id = 'wa-' + slug(inst.name);
+      byId[id] = {
+        id, name: inst.name, group: 'whatsapp', auto: false,
+        desc: [inst.phone && `Número ${inst.phone}`, inst.profile && `Perfil "${inst.profile}"`, 'Instancia de Evolution API'].filter(Boolean).join(' · '),
+        urls: [], repos: [], railway: [], _repos: [], _rail: [], _evo: { ...st, phone: inst.phone, profile: inst.profile }, open: managerUrl,
+      };
+      projects.push(byId[id]);
+    }
+    for (const p of projects) if (p.id === 'evolution-api' && managerUrl) p.open = managerUrl;
+
     // armar lista de links a chequear, recordando de dónde sale cada uno
     const norm = u => u.toLowerCase().replace(/\/$/, '');
     for (const p of projects) {
@@ -324,7 +384,9 @@ async function runChecks() {
     });
 
     // bots de WhatsApp
-    await pool(projects.filter(p => p.evolution), 3, async p => { p._evo = await evolutionState(p.evolution); });
+    await pool(projects.filter(p => p.evolution), 3, async p => {
+      p._evo = p._evoInst ? { ...evoStateOf(p._evoInst), phone: p._evoInst.phone, profile: p._evoInst.profile } : await evolutionState(p.evolution);
+    });
 
     const BEST = { ok: 3, warn: 2, down: 1, code: 0, unknown: 0 };
     const out = projects.map(p => {
@@ -367,7 +429,7 @@ async function runChecks() {
         status, checks, railway, whatsapp: p._evo || null,
         repos: p._repos.map(r => ({ full: r.full, url: r.url, pushedAt: r.pushedAt, pages: r.pages, private: r.private })),
         lastPush: p._repos.map(r => r.pushedAt).sort().pop() || null,
-        open: (checks.find(c => c.status === 'ok') || checks[0] || {}).url || (p._repos[0] && p._repos[0].url) || null,
+        open: p.open || (checks.find(c => c.status === 'ok') || checks[0] || {}).url || (p._repos[0] && p._repos[0].url) || null,
         uptime, history: hist.slice(-48).map(h => h.s),
       };
     });
@@ -386,8 +448,14 @@ async function runChecks() {
         claude,
         whatsapp: (() => {
           const evo = out.filter(p => p.whatsapp);
-          if (!evo.length) return { status: 'unknown', note: 'Sin instancias configuradas' };
-          return { status: worst(evo.map(p => p.whatsapp.status)), note: evo.map(p => p.whatsapp.note).join(' · ') };
+          if (evoAll.list.length) {
+            const okN = evoAll.list.filter(i => i.state === 'open').length;
+            const bad = evoAll.list.filter(i => i.state !== 'open').map(i => i.name);
+            return { status: okN === evoAll.list.length ? 'ok' : okN ? 'warn' : 'down', note: `${okN} de ${evoAll.list.length} números conectados${bad.length ? ' · sin conexión: ' + bad.join(', ') : ''}`, manager: managerUrl };
+          }
+          if (evoAll.error && EVOLUTION_API_KEY) return { status: 'down', note: evoAll.error, manager: managerUrl };
+          if (!evo.length) return { status: 'unknown', note: evoAll.error || 'Sin instancias configuradas', manager: managerUrl };
+          return { status: worst(evo.map(p => p.whatsapp.status)), note: evo.map(p => p.whatsapp.note).join(' · '), manager: managerUrl };
         })(),
       },
     };
@@ -406,6 +474,7 @@ async function runChecks() {
 const ALERT = { state: new Map(), booted: false, lastSent: null, lastError: null, recheckTimer: null, lastDaily: null };
 function alertEvoUrl() {
   if (ALERT_EVO_URL_ENV) return ALERT_EVO_URL_ENV.replace(/\/$/, '');
+  if (EVOLUTION_URL) return evoBaseUrl();
   try { const p = loadConfig().projects.find(x => x.evolution && x.evolution.url); return p ? p.evolution.url.replace(/\/$/, '') : ''; } catch { return ''; }
 }
 function alertMissing() {
@@ -450,7 +519,9 @@ function reasonText(p) {
   const c = p.checks.find(c => c.status === 'down' && !c.ignored) || p.railway.find(s => s.status === 'down') || (p.whatsapp && p.whatsapp.status === 'down' ? p.whatsapp : null);
   return c ? c.note : 'No responde';
 }
-function linkOf(p) { const c = p.checks.find(c => !c.ignored); return c ? c.url : (p.railway[0] ? p.railway[0].link : ''); }
+function linkOf(p) { if (p.group === 'whatsapp' && p.open) return p.open; const c = p.checks.find(c => !c.ignored); return c ? c.url : (p.railway[0] ? p.railway[0].link : (p.open || '')); }
+const isWa = p => p.group === 'whatsapp';
+const downTitle = p => isWa(p) ? `Se desconectó el WhatsApp ${p.name}` : `Se cayó ${p.name}`;
 function duration(fromMs) {
   const m = Math.max(1, Math.round((Date.now() - fromMs) / 60000));
   if (m < 60) return `${m} min`;
@@ -487,9 +558,9 @@ async function processAlerts(projects) {
 
   const parts = [];
   if (newDown.length) parts.push(newDown.length === 1
-    ? `🔴 *Se cayó ${newDown[0].name}*\n${reasonText(newDown[0])}${linkOf(newDown[0]) ? '\n' + linkOf(newDown[0]) : ''}`
+    ? `🔴 *${downTitle(newDown[0])}*\n${reasonText(newDown[0])}${linkOf(newDown[0]) ? '\n' + linkOf(newDown[0]) : ''}`
     : `🔴 *Se cayeron ${newDown.length} apps*\n` + newDown.map(p => `• *${p.name}*: ${reasonText(p)}`).join('\n'));
-  if (recovered.length) parts.push(recovered.map(({ p, since }) => `🟢 *${p.name} volvió a funcionar*${since ? ` (estuvo caída ${duration(since)})` : ''}`).join('\n'));
+  if (recovered.length) parts.push(recovered.map(({ p, since }) => `🟢 *${isWa(p) ? 'Se reconectó el WhatsApp ' + p.name : p.name + ' volvió a funcionar'}*${since ? ` (estuvo caída ${duration(since)})` : ''}`).join('\n'));
   if (remind.length) parts.push(`⏰ *Siguen caídas*\n` + remind.map(({ p, since }) => `• *${p.name}* hace ${duration(since)}: ${reasonText(p)}`).join('\n'));
   if (parts.length) await safeSend(parts.join('\n\n') + footer());
 }

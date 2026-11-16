@@ -34,6 +34,7 @@ Tu asistente personal con voz y texto. Muestra todos tus proyectos como una red 
    - `GITHUB_TOKEN`: token de GitHub (ver abajo)
    - `RAILWAY_TOKEN`: token de cuenta de Railway (ver abajo)
    - `EVOLUTION_API_KEY`: la apikey global de tu Evolution API (para saber si WhatsApp está conectado)
+   - `EVOLUTION_URL`: la dirección de tu Evolution, por ejemplo `https://evolution-api-production-a132.up.railway.app` (también sirve pegando el link del `/manager/`). Con esto y `EVOLUTION_API_KEY`, ABEL muestra todos tus números de WhatsApp en el grupo "Números de WhatsApp" y te avisa si alguno se desconecta.
    - Opcionales: `CLAUDE_MODEL` (por defecto `claude-sonnet-5-5`), `CHECK_EVERY_MIN` (por defecto 5), `GITHUB_USERS` (por defecto `osmarfernandez2555-cpu,natirodriguez32-sketch`)
 4. Pestaña Settings → Networking → Generate Domain. Te queda algo como `abel-asistente-production.up.railway.app`.
 5. Abrilo en Chrome, poné la contraseña y listo. El primer chequeo tarda unos segundos.
